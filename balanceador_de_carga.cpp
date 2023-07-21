@@ -57,46 +57,45 @@ int main (int argc, char **argv) {
             for (int i = proximo; i < total_recorridos_por_proceso + proximo; i++) {
                 
                 // mandamos total_recorridos_por_proceso como tag para que sepa cuantos recv tiene que hacer
-                MPI_Send(recorridos[i].c_str(), recorridos[i].size() + 1, MPI_CHAR, destino, total_recorridos_por_proceso, MPI_COMM_WORLD); 
+                MPI_Send(recorridos[i].c_str(), recorridos[i].size() + 1, MPI_CHAR, destino, total_recorridos_por_proceso, MPI_COMM_WORLD);
             }
 
             proximo = total_recorridos_por_proceso + proximo;
         }
 
     } else {
-        // hay que ver como sabe de antemano el largo del string a recibir
         char file_name[15];
+
         MPI_Recv(file_name, 15, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &info);
-        
         MPI_Get_count(&info, MPI_CHAR, &ndat);
-        printf("P%d recibe de P%d: tag %d, ndat %d \n\n", pid, info.MPI_SOURCE, info.MPI_TAG, ndat);
+        printf("P%d recibe de P%d: tag %d, ndat %d \n", pid, info.MPI_SOURCE, info.MPI_TAG, ndat);
+
+        Py_Initialize();
+
+        FILE* scriptFile = fopen("procesador_de_recorrido.py", "r");
+        PyRun_SimpleFile(scriptFile, "procesador_de_recorrido.py");
+        fclose(scriptFile);
+
+        PyObject* pModule = PyImport_AddModule("__main__");
+        PyObject* pFunc = PyObject_GetAttrString(pModule, "procesarRecorrido");
 
         for (int j = 0; j < info.MPI_TAG; j++) {
             if (j != 0) {
                 MPI_Recv(file_name, 15, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             }
             
-            // Usamos python interpreter para correr la funcion procesarRecorrido para el filename recibido
-            
-            Py_Initialize();
-
             PyObject* pyArg = PyUnicode_FromString(file_name);
-
-            FILE* scriptFile = fopen("procesador_de_recorrido.py", "r");
-            PyRun_SimpleFile(scriptFile, "procesador_de_recorrido.py");
-            fclose(scriptFile);
-
-            PyObject* pModule = PyImport_AddModule("__main__");
-            PyObject* pFunc = PyObject_GetAttrString(pModule, "procesarRecorrido");
-
-            PyObject_CallFunctionObjArgs(pFunc, pyArg, NULL);
+            PyObject* pyRes = PyObject_CallFunctionObjArgs(pFunc, pyArg, NULL);
 
             Py_DECREF(pyArg);
-            Py_DECREF(pFunc);
-            Py_Finalize();
-
-            printf("Tiempo de procesamiento para %s: %f \n\n", file_name, MPI_Wtime());
+            Py_DECREF(pyRes);
+            
+            printf("Proceso: %d - Recorrido: %s - Tiempo: %f \n\n", pid, file_name, MPI_Wtime());
         }
+        
+        Py_DECREF(pFunc);
+        Py_DECREF(pModule);
+        Py_Finalize();
     }
     
     MPI_Finalize();
