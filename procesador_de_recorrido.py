@@ -35,7 +35,8 @@ def procesarRecorrido(filename):
 
                 if (len(rango_dias) > res[row['GID']]['max_dias_acumulacion']):
                     rango_fechas = rango_dias[res[row['GID']]['max_dias_acumulacion']:]
-                    res[row['GID']]['atrasos_por_rango'].append(rango_fechas)
+                    lista_de_fechas = rango_fechas.strftime('%d/%m/%Y').tolist()
+                    res[row['GID']]['atrasos_por_rango'].append(lista_de_fechas)
 
             res[row['GID']]['ultima_fecha'] = fecha
 
